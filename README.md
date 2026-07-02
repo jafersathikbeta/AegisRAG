@@ -54,3 +54,5 @@ See `.env.example`:
 
 - Audit trail: `.aegis_audit.log` (JSON lines)
 - Wrap sensitive operations in `NetworkGuard` to raise `PermissionError("Outbound network blocked by AegisRAG")`
+ 
+ 
