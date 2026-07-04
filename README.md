@@ -56,3 +56,4 @@ See `.env.example`:
 - Wrap sensitive operations in `NetworkGuard` to raise `PermissionError("Outbound network blocked by AegisRAG")`
  
  
+ 
