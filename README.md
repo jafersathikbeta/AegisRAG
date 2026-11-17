@@ -1,99 +1,61 @@
 # AegisRAG
 
-Production-grade, fully offline RAG system with NetworkGuard, PII redaction, FAISS retrieval, and extractive QA (`deepset/roberta-base-squad2`).
+A production-grade, fully offline Retrieval-Augmented Generation (RAG) desktop application. AegisRAG prioritizes data privacy and security by enforcing a strict zero-network policy, automated PII redaction, and local-only AI models.
 
-## Features
+## Core Architecture
 
-- **Offline embeddings** via `sentence-transformers` (`all-MiniLM-L6-v2`)
-- **FAISS** vector search (`faiss-cpu`)
-- **Extractive QA** — answers only from retrieved chunks
-- **NetworkGuard** — blocks outbound sockets / `urlopen` at runtime
-- **PII redaction** — Email, Phone (US/IN), SSN, Credit Card, IPv4, Aadhaar, PAN
-- **Gradio** dark enterprise dashboard (Chat · Ingestion · Audit · Evaluation)
+- **Desktop App:** Wrapped in a native desktop window using `pywebview`.
+- **Backend:** High-performance `FastAPI` server running locally.
+- **Vector Search:** `FAISS` (with a custom NumPy fallback for Python 3.15 compatibility).
+- **Embeddings:** `sentence-transformers` (`all-MiniLM-L6-v2`).
+- **Extractive QA:** `deepset/roberta-base-squad2` (answers are generated strictly from retrieved local document chunks).
 
-## Setup (Windows)
+## Security & Privacy Features
 
-```powershell
-cd aegis-rag
-python -m venv venv
-.\venv\Scripts\activate
-pip install -r requirements.txt
-```
+- **NetworkGuard:** A custom runtime interceptor that blocks outbound sockets and `urlopen` calls, preventing data exfiltration.
+- **PII Redaction:** Automatically detects and masks Emails, Phone Numbers (US/IN), SSNs, Credit Cards, IPv4 addresses, Aadhaar, and PAN.
+- **Audit Ledger:** Generates a JSON-lines audit trail (`.aegis_audit.log`) for all queries, ingestions, and security blocks.
+- **Injection Protection:** Blocks malicious document injections during the ingestion pipeline.
 
-**Python 3.15 note:** `faiss-cpu` has no cp315 wheel yet. AegisRAG falls back to a NumPy `IndexFlatIP` shim (`src/faiss_compat.py`) with the same API. On Python &lt; 3.15, native `faiss-cpu` is used.
+## Multimodal Ingestion
 
-First run downloads Hugging Face models (local cache thereafter). No API keys required.
+Unlike standard text-only RAG systems, AegisRAG extracts text from multiple media types locally:
+- **Documents:** PDF (`pypdf`)
+- **Images:** OCR via `pytesseract` and `opencv-python`
+- **Audio:** Transcription via `faster-whisper`
+- **Video:** Frame extraction via `moviepy`
 
-## Run
+## Setup & Installation (Windows)
 
-```powershell
-python src\app.py
-```
+1. Clone the repository and create a virtual environment:
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
-Open **http://127.0.0.1:7860**
+2. **Note on Python 3.15:** Native `faiss-cpu` wheels are not yet available. AegisRAG includes a custom NumPy `IndexFlatIP` shim (`src/faiss_compat.py`) that mimics the FAISS API perfectly.
 
-## Tests
+3. Run the application:
+   ```powershell
+   python run.py
+   ```
+   *This starts the FastAPI server and opens the native desktop window.*
+
+## Configuration
+
+Environment variables (see `.env.example`):
+
+| Variable | Default |
+|----------|---------|
+| `CHUNK_SIZE` | `500` |
+| `TOP_K` | `3` |
+| `EMBED_MODEL` | `all-MiniLM-L6-v2` |
+| `QA_MODEL` | `deepset/roberta-base-squad2` |
+
+## Testing
 
 ```powershell
 $env:PYTHONPATH = "src"
 pytest -q
 ```
-
-## Configuration
-
-See `.env.example`:
-
-| Variable     | Default                         |
-|--------------|---------------------------------|
-| `CHUNK_SIZE` | `500`                           |
-| `TOP_K`      | `3`                             |
-| `EMBED_MODEL`| `all-MiniLM-L6-v2`              |
-| `QA_MODEL`   | `deepset/roberta-base-squad2`   |
-
-## Security
-
-- Audit trail: `.aegis_audit.log` (JSON lines)
-- Wrap sensitive operations in `NetworkGuard` to raise `PermissionError("Outbound network blocked by AegisRAG")`
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
- 
