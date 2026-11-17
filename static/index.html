@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AegisRAG</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            side: "#202123",
+            chat: "#343541",
+            deep: "#0d1117",
+            bubble: "#444654",
+            accent: "#1f6feb",
+            muted: "#8e8ea0",
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+          },
+          keyframes: {
+            fadeIn: {
+              "0%": { opacity: "0", transform: "translateY(8px)" },
+              "100%": { opacity: "1", transform: "translateY(0)" },
+            },
+          },
+          animation: {
+            fadeIn: "fadeIn 0.28s ease-out",
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; }
+    #chat-log::-webkit-scrollbar { width: 8px; }
+    #chat-log::-webkit-scrollbar-thumb { background: #565869; border-radius: 8px; }
+    details.rag-sec summary { list-style: none; cursor: pointer; }
+    details.rag-sec summary::-webkit-details-marker { display: none; }
+    .spinner {
+      width: 18px; height: 18px; border: 2px solid #8e8ea0;
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="h-full bg-deep text-white antialiased">
+  <div class="flex h-screen w-full overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="hidden md:flex w-[260px] shrink-0 flex-col bg-side border-r border-[#2a2b32]">
+      <div class="flex items-center gap-3 px-4 py-4 border-b border-[#2a2b32]">
+        <div class="h-9 w-9 rounded-xl bg-accent grid place-items-center font-bold shadow-lg shadow-accent/30">A</div>
+        <div>
+          <div class="font-semibold tracking-tight">AegisRAG</div>
+          <div class="text-[11px] text-muted">Offline · Air-gapped · Secure</div>
+        </div>
+      </div>
+
+      <div class="p-3 space-y-3 flex-1 overflow-y-auto">
+        <label class="block">
+          <span class="text-xs font-medium text-muted uppercase tracking-wide">Upload</span>
+          <form id="ingest-form" class="mt-2 space-y-2">
+            <input id="file-input" type="file"
+              accept=".txt,.pdf,.png,.jpg,.jpeg,.mp4,.avi"
+              class="block w-full text-xs text-muted file:mr-2 file:rounded-lg file:border-0 file:bg-[#343541] file:px-3 file:py-2 file:text-sm file:text-white hover:file:bg-[#40414f] file:cursor-pointer file:transition" />
+            <button type="submit"
+              class="w-full rounded-lg bg-accent hover:bg-[#388bfd] transition py-2.5 text-sm font-semibold">
+              Ingest file
+            </button>
+          </form>
+          <p id="ingest-status" class="mt-2 text-xs text-muted min-h-[1.25rem]"></p>
+        </label>
+
+        <div class="rounded-xl border border-[#2a2b32] bg-[#17181c] p-3 shadow-inner">
+          <div class="flex items-center gap-2 text-sm font-semibold text-emerald-400">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            Offline &amp; Air-gapped
+          </div>
+          <div class="mt-3 space-y-1.5 font-mono text-[11px] text-muted" id="metrics-card">
+            <div>PII redacted: <span class="text-white" id="m-pii">—</span></div>
+            <div>Network blocks: <span class="text-white" id="m-net">—</span></div>
+            <div>Injection blocks: <span class="text-white" id="m-inj">—</span></div>
+            <div>Indexed chunks: <span class="text-white" id="m-chunks">—</span></div>
+            <div>Ledger: <span id="m-ledger">—</span></div>
+          </div>
+          <button id="refresh-metrics"
+            class="mt-3 w-full rounded-lg border border-[#2a2b32] bg-transparent hover:bg-[#343541] transition py-2 text-xs font-medium">
+            Refresh metrics
+          </button>
+          <button id="clear-db"
+            class="mt-2 w-full rounded-lg border border-red-500/40 text-red-300 hover:bg-red-500/10 transition py-2 text-xs font-medium">
+            Clear database
+          </button>
+        </div>
+      </div>
+
+      <div class="p-3 text-[10px] text-muted border-t border-[#2a2b32]">
+        NetworkGuard · PII boundary chunking · Hash ledger
+      </div>
+    </aside>
+
+    <!-- Main chat -->
+    <main class="flex min-w-0 flex-1 flex-col bg-chat relative">
+      <header class="shrink-0 border-b border-[#2a2b32]/bg-chat/80 backdrop-blur px-4 py-3 text-center">
+        <h1 class="text-sm font-semibold tracking-tight">AegisRAG</h1>
+        <p class="text-xs text-muted">Ask anything about your ingested knowledge</p>
+      </header>
+
+      <div id="chat-log" class="flex-1 overflow-y-auto px-3 sm:px-6 py-6 space-y-5 scroll-smooth">
+        <div class="mx-auto max-w-3xl text-center text-muted text-sm py-16 animate-fadeIn">
+          Upload a document from the sidebar, then start chatting.
+        </div>
+      </div>
+
+      <!-- Floating composer -->
+      <div class="shrink-0 px-3 sm:px-6 pb-5 pt-2 bg-gradient-to-t from-chat via-chat to-transparent">
+        <form id="chat-form" class="mx-auto max-w-3xl flex items-end gap-2 rounded-3xl border border-[#565869] bg-[#40414f] px-3 py-2 shadow-2xl shadow-black/40 focus-within:border-accent transition">
+          <textarea id="chat-input" rows="1" placeholder="Message AegisRAG…"
+            class="flex-1 resize-none bg-transparent border-0 outline-none ring-0 focus:ring-0 text-[15px] leading-6 py-2.5 max-h-40 placeholder:text-muted"></textarea>
+          <button type="submit" id="send-btn"
+            class="mb-0.5 h-10 w-10 shrink-0 rounded-full bg-accent hover:bg-[#388bfd] disabled:opacity-40 disabled:hover:bg-accent grid place-items-center transition font-bold text-lg"
+            aria-label="Send">↑</button>
+        </form>
+        <p class="mx-auto max-w-3xl text-center text-[10px] text-muted mt-2">
+          Answers are extractive &amp; on-device. Outbound network is blocked during queries.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const chatLog = document.getElementById("chat-log");
+    const chatForm = document.getElementById("chat-form");
+    const chatInput = document.getElementById("chat-input");
+    const sendBtn = document.getElementById("send-btn");
+    const ingestForm = document.getElementById("ingest-form");
+    const fileInput = document.getElementById("file-input");
+    const ingestStatus = document.getElementById("ingest-status");
+
+    let emptyCleared = false;
+
+    function clearEmptyState() {
+      if (!emptyCleared) {
+        chatLog.innerHTML = "";
+        emptyCleared = true;
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    function appendUser(text) {
+      clearEmptyState();
+      const row = document.createElement("div");
+      row.className = "mx-auto max-w-3xl flex justify-end animate-fadeIn";
+      row.innerHTML = `
+        <div class="max-w-[85%] rounded-[18px_18px_4px_18px] bg-accent text-white px-4 py-3 text-[15px] leading-relaxed shadow-lg shadow-accent/20 whitespace-pre-wrap">${escapeHtml(text)}</div>`;
+      chatLog.appendChild(row);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function appendBot(answer, sources, pii) {
+      clearEmptyState();
+      const row = document.createElement("div");
+      row.className = "mx-auto max-w-3xl flex justify-start animate-fadeIn";
+      const src = sources || "—";
+      row.innerHTML = `
+        <div class="max-w-[90%] rounded-[18px_18px_18px_4px] bg-bubble text-[#ececf1] px-4 py-3 text-[15px] leading-relaxed border border-[#565869]/60 shadow-lg">
+          <div class="whitespace-pre-wrap">${escapeHtml(answer)}</div>
+          <details class="rag-sec mt-3 inline-block rounded-lg border border-[#565869]/70 bg-[#343541]/80 px-2.5 py-1.5 text-xs text-muted">
+            <summary class="hover:text-white transition">🛡️ RAG Security Details</summary>
+            <div class="mt-1.5 text-[11px] leading-5 text-[#d1d5db]">
+              Sources: <code class="text-sky-300">${escapeHtml(src)}</code><br/>
+              PII Redacted: <b class="text-white">${pii ?? 0}</b> · Network: <b class="text-emerald-400">Blocked</b>
+            </div>
+          </details>
+        </div>`;
+      chatLog.appendChild(row);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function appendLoading() {
+      clearEmptyState();
+      const row = document.createElement("div");
+      row.id = "loading-row";
+      row.className = "mx-auto max-w-3xl flex justify-start animate-fadeIn";
+      row.innerHTML = `
+        <div class="rounded-[18px_18px_18px_4px] bg-bubble border border-[#565869]/60 px-4 py-3 flex items-center gap-2 text-sm text-muted">
+          <div class="spinner"></div> Thinking…
+        </div>`;
+      chatLog.appendChild(row);
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    function removeLoading() {
+      document.getElementById("loading-row")?.remove();
+    }
+
+    async function refreshMetrics() {
+      try {
+        const res = await fetch("/metrics");
+        const m = await res.json();
+        document.getElementById("m-pii").textContent = m.total_pii_redacted;
+        document.getElementById("m-net").textContent = m.total_network_blocks;
+        document.getElementById("m-inj").textContent = m.total_injection_blocks;
+        document.getElementById("m-chunks").textContent = m.indexed_chunks;
+        const ledger = document.getElementById("m-ledger");
+        if (m.ledger_valid) {
+          ledger.textContent = "✓ valid";
+          ledger.className = "text-emerald-400";
+        } else {
+          ledger.textContent = "✗ tampered";
+          ledger.className = "text-red-400";
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    chatInput.addEventListener("input", () => {
+      chatInput.style.height = "auto";
+      chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + "px";
+    });
+
+    chatInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        chatForm.requestSubmit();
+      }
+    });
+
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const message = chatInput.value.trim();
+      if (!message) return;
+
+      chatInput.value = "";
+      chatInput.style.height = "auto";
+      sendBtn.disabled = true;
+      appendUser(message);
+      appendLoading();
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message }),
+        });
+        const data = await res.json();
+        removeLoading();
+        if (!res.ok) {
+          appendBot(data.detail || "Request failed.", "", 0);
+        } else {
+          appendBot(data.answer, data.sources, data.pii_redacted);
+        }
+        refreshMetrics();
+      } catch (err) {
+        removeLoading();
+        appendBot("Network error talking to AegisRAG.", "", 0);
+      } finally {
+        sendBtn.disabled = false;
+        chatInput.focus();
+      }
+    });
+
+    ingestForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const file = fileInput.files?.[0];
+      if (!file) {
+        ingestStatus.textContent = "Choose a file first.";
+        ingestStatus.className = "mt-2 text-xs text-amber-300";
+        return;
+      }
+      ingestStatus.textContent = `Ingesting ${file.name}…`;
+      ingestStatus.className = "mt-2 text-xs text-sky-300";
+
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const res = await fetch("/ingest", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          ingestStatus.textContent = data.detail || "Ingest failed";
+          ingestStatus.className = "mt-2 text-xs text-red-300";
+        } else {
+          ingestStatus.textContent = data.message || "Done";
+          ingestStatus.className = "mt-2 text-xs text-emerald-400";
+          fileInput.value = "";
+          refreshMetrics();
+        }
+      } catch (err) {
+        ingestStatus.textContent = "Upload error";
+        ingestStatus.className = "mt-2 text-xs text-red-300";
+      }
+    });
+
+    document.getElementById("refresh-metrics").addEventListener("click", refreshMetrics);
+    document.getElementById("clear-db").addEventListener("click", async () => {
+      await fetch("/clear", { method: "POST" });
+      ingestStatus.textContent = "Knowledge base cleared.";
+      ingestStatus.className = "mt-2 text-xs text-emerald-400";
+      refreshMetrics();
+    });
+
+    refreshMetrics();
+  </script>
+</body>
+</html>
