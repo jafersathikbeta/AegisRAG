@@ -11,4 +11,4 @@ build/
 dist/
 _internal/
 Setup.exe
-*.exe
+*.exemake_commits.bat 
