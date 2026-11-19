@@ -14,7 +14,7 @@ A production-grade, fully offline Retrieval-Augmented Generation (RAG) desktop a
 
 - **NetworkGuard:** A custom runtime interceptor that blocks outbound sockets and `urlopen` calls, preventing data exfiltration.
 - **PII Redaction:** Automatically detects and masks Emails, Phone Numbers (US/IN), SSNs, Credit Cards, IPv4 addresses, Aadhaar, and PAN.
-- **Audit Ledger:** Generates a JSON-lines audit trail (`.aegis_audit.log`) for all queries, ingestions, and security blocks.
+- **Audit Ledger:** Generates a JSON-lines audit trail (`.aegis_audit.log`) for all queries, ingestions, and security blocks. Entries are SHA-256 hash-chained, so any edit or deletion is detectable on verification.
 - **Injection Protection:** Blocks malicious document injections during the ingestion pipeline.
 
 ## Multimodal Ingestion
